@@ -1,4 +1,9 @@
-import { InfoOutlined, OpenInNew } from "@mui/icons-material";
+import {
+  InfoOutlined,
+  KeyboardArrowDown,
+  KeyboardArrowUp,
+  OpenInNew,
+} from "@mui/icons-material";
 import {
   Box,
   Button,
@@ -10,12 +15,34 @@ import {
   TextField,
   Typography,
   Link,
+  MenuItem,
+  Menu,
+  Stack,
 } from "@mui/material";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { RiGeminiLine } from "react-icons/ri";
 
-export default function APIKeyDialog({ open, onClose, onConfirm }) {
-  const [apiKey, setApiKey] = useState("");
+export default function APIKeyDialog({
+  apiKeys,
+  selectedModel,
+  open,
+  onClose,
+  onUpdateAPIKey,
+}) {
+  const [apiKey, setApiKey] = useState(apiKeys[selectedModel]);
+
+  useEffect(() => {
+    setApiKey(apiKeys[selectedModel] || "");
+  }, [selectedModel]);
+
+  const [anchorEl, setAnchorEl] = useState(null);
+  const menuOpen = Boolean(anchorEl);
+  const handleClick = (event) => {
+    setAnchorEl(event.currentTarget);
+  };
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
 
   return (
     <Dialog open={open} onClose={onClose}>
@@ -32,25 +59,76 @@ export default function APIKeyDialog({ open, onClose, onConfirm }) {
           </Link>
         </Typography>
 
-        <TextField
-          label="API Key"
-          placeholder="API Key"
-          variant="filled"
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <RiGeminiLine />
-              </InputAdornment>
-            ),
-          }}
-          value={apiKey}
-          onChange={(e) => {
-            setApiKey(e.target.value);
-          }}
-          fullWidth
-          sx={{ width: "100%" }}
-          autoFocus={true}
-        />
+        <Stack direction="row" width="100%">
+          <TextField
+            label="API Key"
+            placeholder="API Key"
+            variant="filled"
+            type="password"
+            key={selectedModel}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <RiGeminiLine />
+                </InputAdornment>
+              ),
+            }}
+            value={apiKey}
+            onChange={(e) => {
+              setApiKey(e.target.value);
+            }}
+            fullWidth
+            sx={{ width: "100%", mr: 2 }}
+            autoFocus={true}
+          />
+          <Button
+            id="basic-button"
+            aria-controls={menuOpen ? "basic-menu" : undefined}
+            aria-haspopup="true"
+            aria-expanded={menuOpen ? "true" : undefined}
+            onClick={handleClick}
+            sx={{
+              ml: "auto",
+              flexShrink: 0,
+              minWidth: "170px",
+            }}
+            size="small"
+            endIcon={menuOpen ? <KeyboardArrowUp /> : <KeyboardArrowDown />}
+          >
+            Model: {selectedModel}
+          </Button>
+          <Menu
+            id="basic-menu"
+            anchorEl={anchorEl}
+            open={menuOpen}
+            onClose={handleClose}
+            MenuListProps={{
+              "aria-labelledby": "basic-button",
+            }}
+            anchorOrigin={{
+              vertical: "bottom",
+              horizontal: "center",
+            }}
+            transformOrigin={{
+              vertical: "top",
+              horizontal: "center",
+            }}
+          >
+            {["Gemini", "Anthropic", "OpenAI"].map((model) => (
+              <MenuItem
+                key={model}
+                onClick={() => {
+                  var modelName = model.toLowerCase();
+                  onUpdateAPIKey(modelName, apiKeys[modelName]);
+
+                  handleClose();
+                }}
+              >
+                {model}
+              </MenuItem>
+            ))}
+          </Menu>
+        </Stack>
 
         <Box mt={4} typography="body2" color="text.secondary">
           <Typography variant="inherit">
@@ -87,7 +165,8 @@ export default function APIKeyDialog({ open, onClose, onConfirm }) {
       <DialogActions>
         <Button
           onClick={() => {
-            onConfirm(apiKey);
+            onUpdateAPIKey(selectedModel, apiKey);
+            onClose();
           }}
         >
           Confirm API Key

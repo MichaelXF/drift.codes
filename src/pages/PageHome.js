@@ -1,9 +1,12 @@
 import { Box, CircularProgress, Fade } from "@mui/material";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocalStorage } from "usehooks-ts";
 import { LocalStorageKeys } from "../constants";
 import IntroPage from "../components/IntroPage";
 import EditorPage from "../components/EditorPage";
+import GeminiModel from "../models/GeminiModel";
+import AnthropicModel from "../models/AnthropicModel";
+import OpenAIModel from "../models/OpenAIModel";
 
 const { GoogleAIFileManager } = require("@google/generative-ai/server");
 
@@ -11,40 +14,33 @@ export default function PageHome() {
   var [file, setFile] = useState();
   var [imageURL, setImageURL] = useState();
   var [page, setPage] = useState(file ? "editor" : "intro");
-  var [apiKey, setApiKey] = useLocalStorage(
-    LocalStorageKeys.DriftCodesGeminiAPIKey,
-    ""
+  var [apiKeys, setApiKeys] = useLocalStorage(
+    LocalStorageKeys.DriftCodesAPIKeys,
+    {}
+  );
+  var [selectedModel, setSelectedModel] = useLocalStorage(
+    LocalStorageKeys.DriftCodesSelectedModel,
+    "gemini"
   );
 
-  /**
-   * Uploads the given file to Gemini.
-   *
-   * See https://ai.google.dev/gemini-api/docs/prompting_with_media
-   */
-  async function uploadToGemini(arrayBuffer, displayName, mimeType) {
-    setPage("loading");
+  var [model, setModel] = useState(null);
 
-    const fileManager = new GoogleAIFileManager(apiKey);
-
-    const uploadResult = await fileManager.uploadFile(arrayBuffer, {
-      mimeType,
-      displayName: displayName,
-    });
-    const file = uploadResult.file;
-
-    console.log(`Uploaded file ${file.displayName} as: ${file.name}`);
-
-    // Convert the ArrayBuffer to a Blob
-    const blob = new Blob([arrayBuffer], { type: mimeType });
-
-    // Create an Object URL for the Blob
-    const imageUrl = URL.createObjectURL(blob);
-
-    setImageURL(imageUrl);
-
-    setFile(file);
-    setPage("editor");
-  }
+  useEffect(() => {
+    if (apiKeys && selectedModel) {
+      const apiKey = apiKeys[selectedModel];
+      if (apiKey) {
+        if (selectedModel === "gemini") {
+          setModel(new GeminiModel(apiKey));
+        } else if (selectedModel === "anthropic") {
+          setModel(new AnthropicModel(apiKey));
+        } else if (selectedModel === "openai") {
+          setModel(new OpenAIModel(apiKey));
+        } else {
+          alert("Please select a model");
+        }
+      }
+    }
+  }, [apiKeys, selectedModel]);
 
   return (
     <Box>
@@ -73,12 +69,32 @@ export default function PageHome() {
       >
         <Box>
           <IntroPage
-            hasAPIKey={!!apiKey}
-            onUpdateAPIKey={(apiKey) => {
-              setApiKey(apiKey);
+            apiKeys={apiKeys}
+            selectedModel={selectedModel}
+            onUpdateAPIKey={(model, apiKey) => {
+              setSelectedModel(model);
+              setApiKeys((keys) => {
+                return { ...keys, [model]: apiKey };
+              });
             }}
             onStart={(file) => {
-              uploadToGemini(file.arrayBuffer, file.fileName, file.mimeType);
+              setFile({
+                blob: file.arrayBuffer,
+                displayName: file.fileName,
+                mimeType: file.mimeType,
+              });
+
+              // Convert the ArrayBuffer to a Blob
+              const blob = new Blob([file.arrayBuffer], {
+                type: file.mimeType,
+              });
+
+              // Create an Object URL for the Blob
+              const imageUrl = URL.createObjectURL(blob);
+
+              setImageURL(imageUrl);
+
+              setPage("editor");
             }}
           />
         </Box>
@@ -86,7 +102,12 @@ export default function PageHome() {
 
       <Fade in={page === "editor"} unmountOnExit timeout={500}>
         <Box>
-          <EditorPage apiKey={apiKey} file={file} imageURL={imageURL} />
+          <EditorPage
+            model={model}
+            file={file}
+            imageURL={imageURL}
+            changePage={(newPage) => setPage(newPage)}
+          />
         </Box>
       </Fade>
     </Box>

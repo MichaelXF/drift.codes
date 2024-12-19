@@ -6,6 +6,7 @@ import {
   CircularProgress,
   Fade,
   FormControlLabel,
+  IconButton,
   LinearProgress,
   Slider,
   Stack,
@@ -21,21 +22,25 @@ import { getImageDimensions } from "../utils/file-utils";
 import Screenshot from "./Screenshot";
 import CompareDialog from "./dialogs/CompareDialog";
 import ContextMenuExample from "./ContextMenu";
+import { Link } from "react-router-dom";
+import BoundingBoxes from "./BoundingBoxes";
+import { AspectRatio, Close, OpenInNew } from "@mui/icons-material";
+import { debounce } from "../utils/react-utils";
+import ChatPopover from "./js-confuser-ai/components/ChatPopover";
 
-const {
-  GoogleGenerativeAI,
-  HarmCategory,
-  HarmBlockThreshold,
-} = require("@google/generative-ai");
-const { GoogleAIFileManager } = require("@google/generative-ai/server");
-
-export default function EditorPage({ apiKey, file, imageURL }) {
+export default function EditorPage({ model, file, imageURL, changePage }) {
   const ref = useRef();
-  const [page, setPage] = useState("code");
+  const [page, setPage] = useState("preview");
 
   const [generating, setGenerating] = useState(false);
   const [imageDimensions, setImageDimensions] = useState();
   const [selectedNode, setSelectedNode] = useState();
+  const [answers, setAnswers] = useState();
+  const [currentResponse, setCurrentResponse] = useState();
+  const [fullScreenMode, setFullScreenMode] = useState(false);
+  const [followAspectRatio, setFollowAspectRatio] = useState(true);
+
+  const [showChatPopover, setShowChatPopover] = useState(false);
 
   useEffect(() => {
     if (!imageURL) return;
@@ -47,40 +52,100 @@ export default function EditorPage({ apiKey, file, imageURL }) {
     loadDimensions();
   }, [imageURL]);
 
-  const genAI = useMemo(
-    () => apiKey && new GoogleGenerativeAI(apiKey),
-    [apiKey]
-  );
-
-  const model = useMemo(
-    () =>
-      genAI &&
-      genAI.getGenerativeModel({
-        model: "gemini-2.0-flash-exp",
-      }),
-    [genAI]
-  );
-  const chatSession = useMemo(() => model && model.startChat(), [model]);
-
   const htmlCleanupRef = useRef();
 
-  /**
-   * Uploads the given file to Gemini.
-   *
-   * See https://ai.google.dev/gemini-api/docs/prompting_with_media
-   */
-  async function uploadToGemini(arrayBuffer, displayName, mimeType) {
-    const fileManager = new GoogleAIFileManager(apiKey);
+  async function chatSessionSendMessage({
+    message,
+    files = [],
+    onNewPart = () => {},
+  }) {
+    setGenerating(true);
+    const response = await model.sendMessageStream(message, ...files);
+    let fullResponse = "";
 
-    const uploadResult = await fileManager.uploadFile(arrayBuffer, {
-      mimeType,
-      displayName: displayName,
-    });
-    const file = uploadResult.file;
+    setCurrentResponse("Loading...");
 
-    console.log(`Uploaded file ${file.displayName} as: ${file.name}`);
+    for await (const part of response) {
+      const text = model.getPartText(part);
+      if (!text) continue;
 
-    return file;
+      fullResponse += text;
+      onNewPart(fullResponse);
+      setCurrentResponse(fullResponse);
+    }
+
+    setGenerating(false);
+    return fullResponse;
+  }
+
+  async function getBoundingBoxes() {
+    setGenerating(true);
+
+    try {
+      // 1. Get component list
+      console.log("Getting component list...");
+      const componentResponse = await chatSessionSendMessage({
+        message: `
+        This is a design of a webpage. We are creating this design in TailwindCSS and would like to know which components we should use to create this design.
+        Based on the image, provide a structured list of all UI components present.
+        Focus on the bigger picture components, such as Layouts, Sections, Navbars, Footers, Sidebars, Dashboard components, Tables, Banners, Charts, Cards, etc.
+        Individual UI controls like Buttons, Inputs, etc. are not needed.
+        Think about creating a list of components that make sense for an HTML/TailwindCSS page.
+
+        Format as JSON with this structure:
+        {
+          "components": [
+            {"name": "ComponentName", "type": "component type", "description": "brief description"}
+          ]
+        }
+      `,
+        files: [file],
+      });
+      const components = componentResponse;
+      console.log("Components:", components);
+
+      // 2. Get bounding boxes
+      console.log("Getting component bounding boxes...");
+      const boundingResponse = await chatSessionSendMessage({
+        message: `
+        For each component identified, provide its approximate position and size.
+        Remember this an HTML page. 
+        Think about bounding boxes as elements and how a browser would render them.
+
+        Your response should use a percentage-based coordinate system. 
+        The top left corner of the image is 0,0 and the bottom right corner is 100,100.
+        Use percentage values for the x, y, width, and height should be between 0 and 100.
+
+        Format as JSON with this structure:
+        {
+          "boundingBoxes": [
+            {
+              "component": "ComponentName",
+              "bounds": {
+                "x": 0,
+                "y": 0,
+                "width": 0,
+                "height": 0
+              }
+            }
+          ]
+        }
+      `,
+      });
+      const boundingBoxes = boundingResponse;
+      console.log("Bounding boxes:", boundingBoxes);
+
+      var answers = {
+        components,
+        boundingBoxes,
+      };
+      setAnswers(answers);
+      return answers;
+    } catch (error) {
+      console.error("Error analyzing image:", error);
+    } finally {
+      setGenerating(false);
+    }
   }
 
   async function sendMessage(message, files, nodeID) {
@@ -88,14 +153,25 @@ export default function EditorPage({ apiKey, file, imageURL }) {
 
     const isSnippet = typeof nodeID === "number";
 
+    function stripMarkdown(fullResponse) {
+      fullResponse = fullResponse.trim();
+      if (fullResponse.startsWith("```html")) {
+        fullResponse = fullResponse.slice("```html".length);
+      }
+      fullResponse = fullResponse.trim();
+      if (fullResponse.endsWith("```")) {
+        fullResponse = fullResponse.slice(0, -3);
+      }
+
+      return fullResponse.trim();
+    }
+
     let importInstructions = `
 **Imports for you:**
 
+You do not need to import anything other than TailwindCSS. Import this script tag in your code:
+
 \`\`\`html
-<link
-  href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css"
-  rel="stylesheet"
-/>
 <script src="https://cdn.tailwindcss.com"></script>
 \`\`\`
     `;
@@ -152,15 +228,7 @@ Please focus only the snippet provided, return the snippet modified and do NOT r
       sentHTML = node.outerHTML;
     }
 
-    const response = await chatSession.sendMessageStream([
-      ...files.map((file) => ({
-        fileData: {
-          mimeType: file.mimeType,
-          fileUri: file.uri,
-        },
-      })),
-      {
-        text: `
+    const fullMessage = `
 You will be helping me code an HTML webpage from a design image. 
 Create the HTML for this webpage. 
 You are helping with me create & revise the HTML for this webpage.
@@ -171,11 +239,12 @@ You are helping with me create & revise the HTML for this webpage.
 - Please extend tailwind.config.theme with exact colors found in the original design
 - Remix Icons
 - Please only use these icons
+- Do not use custom fonts, use the sans-serif font, or 'Mona Sans'
 
 **Code style:**
 
 - Annotate sections with proper comments, IDs, and aria-labels
-- Match closely the icons, links, badges, border-radiuses, dividers, and other components used (Try to make your design one-to-one)
+- Match closely the text-align, flex layout, icons, links, badges, border-radiuses, dividers, and other components used (Try to make your design one-to-one)
 - Do not use any JavaScript, this is purely converting the design to HTML
 - Do not use real images, simply use icons or placeholder background divs with the same dimensions
 - Use 2 spaces, not tabs.
@@ -198,33 +267,20 @@ The user has left feedback regarding this next iteration items to address:
 ${message.trim()}
 
 Respond only with the HTML code. Do not use markdown.
-    `,
+`;
+
+    const fullResponse = await chatSessionSendMessage({
+      message: fullMessage,
+      files: files,
+      onNewPart: (fullResponse) => {
+        const stripped = stripMarkdown(fullResponse);
+        if (isSnippet) {
+          replaceValueByNodeID(stripped, parentNodeId, childIndex);
+        } else {
+          replaceValue(stripped);
+        }
       },
-    ]);
-    let fullResponse = "";
-
-    function stripMarkdown(fullResponse) {
-      fullResponse = fullResponse.trim();
-      if (fullResponse.startsWith("```html")) {
-        fullResponse = fullResponse.slice("```html".length);
-      }
-      fullResponse = fullResponse.trim();
-      if (fullResponse.endsWith("```")) {
-        fullResponse = fullResponse.slice(0, -3);
-      }
-
-      return fullResponse.trim();
-    }
-
-    for await (const part of response.stream) {
-      fullResponse += part.text();
-      const stripped = stripMarkdown(fullResponse);
-      if (isSnippet) {
-        replaceValueByNodeID(stripped, parentNodeId, childIndex);
-      } else {
-        replaceValue(stripped);
-      }
-    }
+    });
 
     if (isSnippet) {
       // Finish
@@ -381,6 +437,7 @@ Respond only with the HTML code. Do not use markdown.
 
       var div = document.createElement("div");
       div.innerHTML = newSubtreeHTML;
+      div.setAttribute("data-ast-temp-div", "true");
 
       parentNode.replaceChild(div, oldChild);
     }
@@ -389,8 +446,8 @@ Respond only with the HTML code. Do not use markdown.
     removedAttributesClone(doc.documentElement.outerHTML);
   }
 
-  function replaceValue(newValue) {
-    try {
+  const replaceValue = debounce(
+    (newValue) => {
       let myPolicy;
       if (window.trustedTypes && window.trustedTypes.createPolicy) {
         myPolicy = window.trustedTypes.createPolicy("my-app-policy", {
@@ -416,6 +473,20 @@ Respond only with the HTML code. Do not use markdown.
         trustedHTMLObject = myPolicy.createHTML(htmlString);
       }
       const doc = parser.parseFromString(trustedHTMLObject, "text/html");
+
+      // Replace temp divs with their children
+      doc.querySelectorAll("[data-ast-temp-div]").forEach((div) => {
+        const parent = div.parentNode;
+        if (!parent) return;
+
+        // Move all children before the temp div
+        while (div.firstChild) {
+          parent.insertBefore(div.firstChild, div);
+        }
+        // Remove the now-empty temp div
+        div.remove();
+      });
+
       astRef.current = doc;
 
       // Attach unique 'data-ast-id' attributes to each DOM node
@@ -441,10 +512,10 @@ Respond only with the HTML code. Do not use markdown.
 
       setIframeHTML(doc.documentElement.outerHTML);
       removedAttributesClone(doc.documentElement.outerHTML);
-    } catch (err) {
-      console.error(err);
-    }
-  }
+    },
+    250,
+    1000
+  );
 
   const [previewValue, setPreviewValue] = useState(100);
 
@@ -457,23 +528,30 @@ Respond only with the HTML code. Do not use markdown.
   const originalImageRef = useRef();
   const iframeRef = useRef();
   const [interactive, setInteractive] = useState(false);
+  const [showBoundingBoxes, setShowBoundingBoxes] = useState(false);
 
   const firstInitRef = useRef(false);
-  if (!firstInitRef.current) {
+  if (!firstInitRef.current && imageDimensions) {
     firstInitRef.current = true;
     setTimeout(() => {
       sendMessage(
         `
 This is the first iteration. You are starting from scratch this revision, hence why only the original design is being provided.
 Keep in mind you will be revising the design several times in the future, please make sure to keep the code clean and organized.
-        `,
+  
+Based on the image, provide a structured list of all UI components present.
+Focus on the bigger picture components, such as Layouts, Sections, Navbars, Footers, Sidebars, Dashboard components, Tables, Banners, Charts, Cards, etc.
+Individual UI controls like Buttons, Inputs, etc. are not needed.
+Think about creating a list of components that make sense for an HTML/TailwindCSS page.`,
 
         [file]
       );
-    }, 100);
+    }, 50);
   }
 
   const [contextMenu, setContextMenu] = useState(null);
+
+  const maxViewport = fullScreenMode ? 100 : 80;
 
   return (
     <Box
@@ -532,6 +610,15 @@ Keep in mind you will be revising the design several times in the future, please
         iframeRef={iframeRef}
         htmlCleanupRef={htmlCleanupRef}
       />
+
+      {showChatPopover ? (
+        <ChatPopover
+          onClose={() => {
+            setShowChatPopover(false);
+          }}
+          model={model}
+        />
+      ) : null}
       <CompareDialog
         open={showCompareDialog}
         onClose={() => {
@@ -553,18 +640,22 @@ Keep in mind you will be revising the design several times in the future, please
           preservedASTMappingsRef.current = astMappingsRef.current;
 
           setGenerating(true);
-          var file1 = await uploadToGemini(
-            screenshot.originalImage.blob,
-            "Original Design.png",
-            "image/png"
+          sendMessage(
+            message,
+            [
+              {
+                mimeType: "image/png",
+                display: "Original Design.png",
+                blob: screenshot.originalImage.blob,
+              },
+              {
+                mimeType: "image/png",
+                display: "Current Design.png",
+                blob: screenshot.revisionImage.blob,
+              },
+            ],
+            nodeID
           );
-          var file2 = await uploadToGemini(
-            screenshot.revisionImage.blob,
-            "Current Design.png",
-            "image/png"
-          );
-
-          sendMessage(message, [file1, file2], nodeID);
 
           if (selectedNode) {
             setSelectedNode(null);
@@ -593,14 +684,20 @@ Keep in mind you will be revising the design several times in the future, please
           color: "primary.main",
           typography: "body2",
           fontWeight: "bold",
+          cursor: "pointer",
+        }}
+        component={Link}
+        to="/"
+        onClick={() => {
+          changePage("intro");
         }}
       >
         drift.codes
       </Box>
 
       <Box
-        maxWidth="90vw"
-        maxHeight="90vh"
+        maxWidth="94vw"
+        maxHeight="min(94vh, calc(100vh - 64px))"
         height="100%"
         width="100%"
         borderRadius="8px"
@@ -619,6 +716,10 @@ Keep in mind you will be revising the design several times in the future, please
           height="34px"
           flexShrink={0}
           position="relative"
+          onMouseDown={(e) => {
+            // Prevent nav mouse downs from triggering screenshot
+            e.stopPropagation();
+          }}
         >
           <Button
             startIcon={<RiAiGenerate />}
@@ -698,11 +799,42 @@ Keep in mind you will be revising the design several times in the future, please
                   "& .MuiFormControlLabel-label": {
                     typography: "body2",
                   },
+                  flexShrink: 0,
                 }}
                 label={
                   selectedNode ? "Deselect Element" : "Select Specific Node"
                 }
               />
+
+              {/* <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={showBoundingBoxes}
+                    onChange={(e) => {
+                      setShowBoundingBoxes(e.target.checked);
+                      if (!answers && !generating) getBoundingBoxes();
+                    }}
+                  />
+                }
+                sx={{
+                  ml: 2,
+                  "& .MuiFormControlLabel-label": {
+                    typography: "body2",
+                  },
+                  flexShrink: 0,
+                }}
+                label="Show Bounding Boxes"
+              /> */}
+
+              <IconButton
+                size="small"
+                onClick={() => {
+                  setFullScreenMode(!fullScreenMode);
+                }}
+                title="Full Screen"
+              >
+                <OpenInNew />
+              </IconButton>
             </Stack>
           ) : null}
           <Box mr="auto"></Box>
@@ -710,7 +842,7 @@ Keep in mind you will be revising the design several times in the future, please
             startIcon={<RiSparkling2Line />}
             sx={{ px: 2, py: "4px" }}
             onClick={() => {
-              setPage("chat");
+              setShowChatPopover(true);
             }}
           >
             Chat
@@ -747,27 +879,104 @@ Keep in mind you will be revising the design several times in the future, please
                 display="flex"
                 alignItems="center"
                 justifyContent="center"
-                maxWidth="80vw"
-                maxHeight="80vh"
+                maxWidth={`${maxViewport}vw`}
+                maxHeight={`${maxViewport}vh`}
                 width="100%"
                 height="100%"
-                sx={{ userSelect: "none" }}
+                sx={
+                  !fullScreenMode
+                    ? { userSelect: "none" }
+                    : {
+                        userSelect: "none",
+                        position: "fixed",
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        width: "100vw",
+                        height: "100vh",
+                        maxWidth: "100vw",
+                        maxHeight: "100vh",
+                        background: "#000",
+                        zIndex: 3,
+                      }
+                }
               >
+                {fullScreenMode ? (
+                  <Box
+                    sx={{
+                      position: "absolute",
+                      top: "16px",
+                      right: "16px",
+                      zIndex: 3,
+                    }}
+                  >
+                    <IconButton
+                      onClick={() => {
+                        setFollowAspectRatio(!followAspectRatio);
+                      }}
+                      sx={{
+                        bgcolor: "rgba(0,0,0,0.7)",
+                        "&:hover": {
+                          bgcolor: "rgba(0,0,0,0.9)",
+                        },
+                        mr: 2,
+                      }}
+                      size="small"
+                      title="Toggle Aspect Ratio"
+                    >
+                      <AspectRatio />
+                    </IconButton>
+
+                    <IconButton
+                      onClick={() => {
+                        setFullScreenMode(false);
+                        setFollowAspectRatio(true);
+                      }}
+                      sx={{
+                        bgcolor: "rgba(0,0,0,0.7)",
+                        "&:hover": {
+                          bgcolor: "rgba(0,0,0,0.9)",
+                        },
+                      }}
+                      size="small"
+                      title={"Exit Full Screen"}
+                    >
+                      <Close />
+                    </IconButton>
+                  </Box>
+                ) : null}
                 <Box
                   sx={{
                     width: "100%",
                     height: "auto",
-                    aspectRatio: `${imageDimensions.width} / ${imageDimensions.height}`,
+                    aspectRatio:
+                      imageDimensions && followAspectRatio
+                        ? `${imageDimensions.width} / ${imageDimensions.height}`
+                        : "1/1",
                     bgcolor: "#fff",
                     position: "relative",
-                    borderRadius: "8px",
+                    borderRadius:
+                      fullScreenMode && !followAspectRatio ? "0px" : "8px",
                     boxShadow: "0 25px 50px -12px rgb(0 0 0 / 0.25)",
                     overflow: "hidden",
 
-                    maxWidth: `clamp(0px, 100%, calc(80vh * (${imageDimensions.width} / ${imageDimensions.height})))`,
-                    maxHeight: `clamp(0px, calc(80vw / (${imageDimensions.width} / ${imageDimensions.height})), 100%)`,
+                    maxWidth:
+                      imageDimensions && followAspectRatio
+                        ? `clamp(0px, 100%, calc(${maxViewport}vh * (${imageDimensions.width} / ${imageDimensions.height})))`
+                        : "100%",
+                    maxHeight:
+                      imageDimensions && followAspectRatio
+                        ? `clamp(0px, calc(${maxViewport}vw / (${imageDimensions.width} / ${imageDimensions.height})), 100%)`
+                        : "100%",
                   }}
                 >
+                  {showBoundingBoxes ? (
+                    <BoundingBoxes
+                      boundingBoxes={answers?.boundingBoxes}
+                      imageDimensions={imageDimensions}
+                    />
+                  ) : null}
                   <HTMLPreview
                     html={iframeHTML}
                     iframeRef={iframeRef}

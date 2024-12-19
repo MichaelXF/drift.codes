@@ -184,6 +184,17 @@ const HTMLPreview = ({
         doc.addEventListener("mousemove", handleIframeMouseMove);
         doc.addEventListener("click", handleIframeClick);
       }
+
+      // Get the iframe's document object
+      const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+
+      // Create a new link element
+      const link = iframeDoc.createElement("link");
+      link.rel = "stylesheet";
+      link.href = "http://localhost:3000/preview/remixicon/remixicon.css";
+
+      // Append the link element to the iframe's documentElement
+      iframeDoc.head.appendChild(link);
     }
   };
 
@@ -229,6 +240,7 @@ const HTMLPreview = ({
         title="HTML Preview"
         draggable={false}
         onLoad={handleIframeLoad}
+        sandbox="allow-scripts allow-same-origin"
       />
     </Box>
   );

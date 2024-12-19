@@ -1,44 +1,26 @@
 import {
-  Alert,
-  AlertTitle,
   Box,
-  Button,
-  CircularProgress,
   IconButton,
   InputAdornment,
   Stack,
   TextField,
   Typography,
 } from "@mui/material";
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { getRandomString } from "../../../utils/random-utils";
-import {
-  InfoOutlined,
-  Key,
-  KeyboardArrowRight,
-  Send,
-  StopCircle,
-} from "@mui/icons-material";
-import Message from "./Message";
-import {
-  RiErrorWarningLine,
-  RiSignalWifiErrorLine,
-  RiSparklingLine,
-  RiWifiOffLine,
-} from "react-icons/ri";
-import ChatLanding from "./ChatLanding";
+import { InfoOutlined, Send, StopCircle } from "@mui/icons-material";
+import { RiSparklingLine } from "react-icons/ri";
+import ChatContent from "./ChatContent";
 
-/**
- * @returns
- */
-export default function Chat({ agent, immediateMessage, fullScreen }) {
-  const webSocketRef = useRef();
-  const incomingMessageCallbackRef = useRef();
+export default function Chat({ maxHeight = "100vh", fullScreen, model }) {
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const inputRef = useRef();
 
-  const hasSentImmediateMessage = useRef(false); // Send the immediate message only once
+  const typingAnimationRef = useRef({});
+
+  const [messages, setMessages] = useState([]);
 
   const containerRef = useRef();
   const flexRef = useRef();
@@ -64,31 +46,18 @@ export default function Chat({ agent, immediateMessage, fullScreen }) {
   }, [flexRef.current]);
 
   // Scroll to bottom on new message
-  function scrollToBottom(forceScroll = false) {
+  function scrollToBottom() {
     const flex = flexRef.current;
     if (!flex) return;
 
-    if (forceScroll) {
-      shouldAutoScrollRef.current = true;
-    }
-
-    // Scroll to bottom if the user was already at the bottom
-    if (shouldAutoScrollRef.current || forceScroll) {
-      setTimeout(() => {
-        flex.scrollTop = flex.scrollHeight;
-      }, 16);
-    }
+    flex.scrollTop = flex.scrollHeight;
+    setTimeout(() => {
+      flex.scrollTop = flex.scrollHeight;
+    }, 20);
   }
 
   function stopGenerating() {
-    const websocket = webSocketRef.current;
-    if (!websocket) return;
-
-    // TODO: Find way to stop generating on backend
-    // websocket.send(JSON.stringify({ stop: true }));
-
-    setGenerating(false);
-    incomingMessageCallbackRef.current = null;
+    // TODO:
   }
 
   function sendMessageFromEvent() {
@@ -100,15 +69,63 @@ export default function Chat({ agent, immediateMessage, fullScreen }) {
     target.value = "";
   }
 
+  async function sendMessage(content) {
+    const sentMessageId = getRandomString();
+    const message = { role: "user", content: content, id: sentMessageId };
+    const sentMessages = [...messages, message];
+
+    const responseId = getRandomString();
+    const responseMessages = [
+      ...sentMessages,
+      { role: "assistant", content: "", loading: true, id: responseId },
+    ];
+
+    scrollToBottom();
+    setMessages(responseMessages);
+    setGenerating(true);
+    setError(null);
+
+    /**
+     * @param {object} partMessage
+     */
+    function onReceivePart(partMessageContent) {
+      // Only update the last message
+      const lastMessage = responseMessages.at(-1);
+      lastMessage.content += partMessageContent;
+      lastMessage.loading = false;
+
+      setMessages([...responseMessages]);
+    }
+
+    // Send message to backend server
+    var stream = await model.sendMessageStream(content);
+
+    for await (const part of stream) {
+      const textPart = model.getPartText(part);
+      if (!textPart) {
+        continue;
+      }
+
+      onReceivePart(textPart);
+    }
+
+    setGenerating(false);
+  }
+
+  const combinedMessages = [];
+  for (var i = 0; i < messages.length; i += 2) {
+    combinedMessages.push({
+      user: messages[i],
+      assistant: messages[i + 1],
+    });
+  }
+
   const [justifyContent, setJustifyContent] = useState("center");
 
   useEffect(() => {
     const element = flexRef.current;
 
     if (!element) return;
-
-    // One time force scroll
-    let didForceScroll = false;
 
     const cb = () => {
       const clientHeight = element.clientHeight;
@@ -117,10 +134,6 @@ export default function Chat({ agent, immediateMessage, fullScreen }) {
       // console.log(clientHeight, elementHeight);
 
       if (elementHeight > clientHeight) {
-        if (!didForceScroll) {
-          scrollToBottom(true);
-          didForceScroll = true;
-        }
         setJustifyContent("flex-start");
 
         cleanup();
@@ -155,54 +168,20 @@ export default function Chat({ agent, immediateMessage, fullScreen }) {
     return () => {
       cleanup();
     };
-  }, [flexRef.current]);
+  }, [maxHeight]);
 
-  const [combinedMessages, setCombinedMessages] = useState([]);
-
-  async function sendMessage(message) {
-    const userMessage = {
-      role: "user",
-      content: message,
-    };
-
-    const assistantMessage = {
-      role: "assistant",
-      content: "",
-    };
-
-    const newMessageID = getRandomString();
-
-    const newMessage = {
-      id: newMessageID,
-      user: userMessage,
-      assistant: assistantMessage,
-    };
-
-    setCombinedMessages((combinedMessages) => [
-      ...combinedMessages,
-      newMessage,
-    ]);
-
-    setGenerating(true);
-
-    const iter = agent.ai.run(message);
-    for await (const part of iter) {
-      assistantMessage.content += part;
-      setCombinedMessages((combinedMessages) => [...combinedMessages]);
-    }
-
-    setGenerating(false);
-  }
+  const ContentWrapperElement =
+    justifyContent === "center" ? React.Fragment : "div";
 
   return (
-    <Box sx={{ height: "100%" }}>
+    <Box>
       {/* <Box className="CustomBGContainer">
         <Box className="CustomBGGrid"></Box>
       </Box> */}
 
-      <Box sx={{ height: "100%" }}>
+      <Box>
         <Box
-          height={"100%"}
+          height={maxHeight}
           // pt="100px"
           display="flex"
           flexDirection="column"
@@ -211,7 +190,8 @@ export default function Chat({ agent, immediateMessage, fullScreen }) {
             sx={{
               overflowY: "auto",
               overflowX: "hidden",
-              height: "100%",
+              height: `calc(${maxHeight} - 120px)`,
+              maxHeight: `calc(${maxHeight} - 120px)`,
             }}
             ref={containerRef}
             display="flex"
@@ -222,92 +202,41 @@ export default function Chat({ agent, immediateMessage, fullScreen }) {
               flexGrow={1}
               spacing={0}
               justifyContent={justifyContent}
-              overflow={justifyContent === "center" ? "hidden" : "auto"}
-              display={justifyContent === "center" ? "flex" : "block"}
               minHeight="100%"
-              height="100%"
               ref={flexRef}
-            >
-              {
-                <>
-                  {combinedMessages.map((message, index) => (
-                    <Message
-                      key={index}
-                      userMessage={message.user}
-                      assistantMessage={message.assistant}
-                      showIncompleteTools={
-                        generating && index === combinedMessages.length - 1
-                      }
-                      scrollToBottom={scrollToBottom}
-                    />
-                  ))}
-
-                  {error ? (
-                    <Stack
-                      direction="row"
-                      spacing={2}
-                      p={2}
-                      boxShadow="2"
-                      bgcolor="background.paper"
-                      border="1px solid"
-                      borderColor="custom_error_alpha"
-                      borderRadius="8px"
-                    >
-                      <Box>
-                        <Box
-                          sx={{
-                            width: "36px",
-                            height: "36px",
-                            borderRadius: "50%",
-                            fontSize: "1.25rem",
-                            display: "flex",
-                            justifyContent: "center",
-                            alignItems: "center",
-                            backgroundColor: "custom_error_alpha",
-                            color: "custom_error",
-                          }}
-                        >
-                          <RiErrorWarningLine />
-                        </Box>
-                      </Box>
-                      <Box>
-                        <Typography variant="h6" color="text.primary">
-                          Connection Failed
-                        </Typography>
-
-                        <Typography variant="body1" color="text.secondary">
-                          {typeof error === "string"
-                            ? error
-                            : "The connection to the server has been lost. Please try again later."}
-                        </Typography>
-
-                        <Button
-                          onClick={() => {
-                            setError(null);
-
-                            // Reconnect
-                            setTimeout(() => {
-                              // Hacky way to get rerender but maintaining truthy/falsy value
-                            }, 300);
-                          }}
-                          sx={{ mt: 2 }}
-                          endIcon={<KeyboardArrowRight />}
-                        >
-                          Try Again
-                        </Button>
-                      </Box>
-                    </Stack>
-                  ) : null}
-                </>
+              sx={
+                justifyContent === "center"
+                  ? {
+                      overflow: "hidden",
+                      display: "flex",
+                    }
+                  : {
+                      overflow: "auto",
+                      display: "flex",
+                      flexDirection: "column-reverse",
+                    }
               }
+            >
+              <ContentWrapperElement key="content">
+                <ChatContent
+                  model={model}
+                  typingAnimationRef={typingAnimationRef}
+                  combinedMessages={combinedMessages}
+                  error={error}
+                  loading={loading}
+                  generating={generating}
+                  sendMessage={sendMessage}
+                  retryConnection={() => {}}
+                />
+              </ContentWrapperElement>
             </Stack>
           </Box>
 
-          <Box pt={4} flexShrink={0}>
+          <Box py={fullScreen ? 5 : 2} flexShrink={0}>
             <Stack direction="row" spacing={2}>
               <TextField
                 autoFocus={true}
-                placeholder="Send a message"
+                placeholder={`Message ${model?.displayName}`}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" && !event.shiftKey) {
                     sendMessageFromEvent();

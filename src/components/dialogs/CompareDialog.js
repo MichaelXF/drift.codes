@@ -92,6 +92,7 @@ export default function CompareDialog({
               alt="Screenshot"
               style={{
                 maxWidth: "40vw",
+                maxHeight: "45vh",
                 borderRadius: "6px",
                 boxShadow: "0 25px 50px -12px rgb(0 0 0 / 0.25)",
               }}
@@ -104,6 +105,7 @@ export default function CompareDialog({
               alt="Screenshot"
               style={{
                 maxWidth: "40vw",
+                maxHeight: "45vh",
                 borderRadius: "6px",
                 boxShadow: "0 25px 50px -12px rgb(0 0 0 / 0.25)",
               }}
@@ -114,7 +116,7 @@ export default function CompareDialog({
         <Box maxWidth="950px" px={10} width="100%" mx="auto" mt={6}>
           <Typography variant="body1" gutterBottom>
             <RiCornerLeftDownFill style={{ marginBottom: "-3px" }} /> Prompt the
-            AI to generate a comparison image by sending a message.
+            AI to generate a new version of this element
           </Typography>
 
           <Stack direction="row" spacing={2}>

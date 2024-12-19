@@ -1,70 +1,55 @@
-# Getting Started with Create React App
+# drift.codes
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Drift is an proof-of-concept AI Agent tool that can code entire TailwindCSS pages for you using Google Gemini's Vision capabilities. This project is currently in V0, see the Roadmap to see what's next.
 
-## Available Scripts
+## Why can I trust you with my API Key?
 
-In the project directory, you can run:
+**Open-source:** Drift.codes is 100% open source, meaning there are no shenanigans or hidden code.  
+You can view the source code on GitHub or run it yourself.
 
-### `npm start`
+**Free key:** This 'free-tier' API Key is granted [1,500 requests per day](https://ai.google.dev/pricing#1_5flash)!  
+There will be no charges made to your account.
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+**Secure key:** Your Gemini API key is isolated to Gemini. It cannot access your Google account in any way.
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+This is exact same as placing your API key into Cline or other open-source tools.
 
-### `npm test`
+## How to use
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+1. Upload an image of a website or a design
+2. Wait for initial code to be generated
+3. Click on a component to select it
+4. Provide feedback on the changes you want to make
+5. The updates will be automatically inserted into the code
 
-### `npm run build`
+## Limitations
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+- Icons/Images cannot be seen by the screenshotting library
+- - Html2Canvas does not support CORS images in iframes
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+- AI responses are not perfect, you should expect to make some manual changes
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+## How it works
 
-### `npm run eject`
+Drift.codes uses an AST-based replacement approach to apply changes to the code.
+This proof-of-concept transfrom uses a hidden 'data-ast-id' attribute to identify the nodes to be replaced.
+This keeps code-changes small and better prompting for the AI model.
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+## Roadmap
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+V0: Create demo website to gather feedback from users.
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+- While facing limitations, this is a simply proof-of-concept for getting feedback
+- Add more model support: OpenAI, LLama
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+V1: Move into VS Code extension with browser-integration to capture real screenshots
 
-## Learn More
+- This will allow Drift.codes to capture icons/images
+- This provides real-world images with proper aspect ratios, etc.
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+V2: Support React-ASTs
 
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+- This is the most complex step towards a full-fledged AI Agent
+- The current project handles DOM-ASTs by ID-ing each node. In React this will need special development hooks to ID each component
+- This will start with single-file support, but once Vector indexings is added, it will be able to handle entire projects
+- Maybe integration with Cline?

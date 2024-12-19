@@ -21,7 +21,13 @@ export const animateIconSx = {
   },
 };
 
-export default function IntroPage({ hasAPIKey, onStart, onUpdateAPIKey }) {
+export default function IntroPage({
+  apiKeys,
+  selectedModel,
+  onStart,
+  onUpdateAPIKey,
+}) {
+  const hasAPIKey = !!apiKeys[selectedModel];
   const [showAPIKeyDialog, setShowAPIKeyDialog] = useState(false);
 
   return (
@@ -42,9 +48,10 @@ export default function IntroPage({ hasAPIKey, onStart, onUpdateAPIKey }) {
         onClose={() => {
           setShowAPIKeyDialog(false);
         }}
-        onConfirm={(apiKey) => {
-          onUpdateAPIKey(apiKey);
-          setShowAPIKeyDialog(false);
+        selectedModel={selectedModel}
+        apiKeys={apiKeys}
+        onUpdateAPIKey={(model, apiKey) => {
+          onUpdateAPIKey(model, apiKey);
         }}
       />
 
@@ -54,15 +61,16 @@ export default function IntroPage({ hasAPIKey, onStart, onUpdateAPIKey }) {
         </Typography>
 
         <Typography fontSize="1.125rem" color="text.secondary" mb={2}>
-          Drift is an AI Agent tool that can code entire TailwindCSS pages for
-          you using Google Gemini's Vision capabilities. <br />
+          Drift is an proof-of-concept AI Agent tool that can code entire
+          TailwindCSS pages for you using Google Gemini's Vision capabilities.{" "}
+          <br />
         </Typography>
 
         <Box maxWidth="700px" px={8} mx="auto" width="100%" mt={4}>
           {[
             "I can reiterate the design on my own, and you can provide feedback for specific elements along the way.",
-            "I am completely free to use thanks to Gemini API free tier",
-            "You may select different icons libraries by just asking me to do so.",
+            "I am completely free to use thanks to Gemini API free tier.",
+            "I am a proof-of-concept demo, you shouldn't expect perfect results.",
           ].map((item, i) => {
             return (
               <Box
@@ -115,7 +123,7 @@ export default function IntroPage({ hasAPIKey, onStart, onUpdateAPIKey }) {
               setShowAPIKeyDialog(true);
             }}
           >
-            {!hasAPIKey ? "Add" : "Edit"} Gemini AI Key
+            {!hasAPIKey ? "Add" : "Edit"} {selectedModel || "Gemini"} API Key
           </Button>
 
           {hasAPIKey && (

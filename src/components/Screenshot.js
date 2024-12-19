@@ -3,6 +3,8 @@ import html2canvas from "html2canvas";
 import { Box } from "@mui/material";
 import { multiply } from "../utils/color-utils";
 
+const allowOutsideImageBox = false;
+
 const Screenshot = ({
   onScreenshot,
   active,
@@ -22,29 +24,31 @@ const Screenshot = ({
     const handleMouseDown = (e) => {
       if (e.button !== 0) return;
 
-      // Ensure cursor is started inside the image element
-      const imageEl = originalImageRef.current;
-      if (!imageEl) return;
+      // Only check image bounds if allowOutsideImageBox is true
+      if (!allowOutsideImageBox) {
+        const imageEl = originalImageRef.current;
+        if (!imageEl) return;
 
-      const rect = imageEl.getBoundingClientRect();
-      const padding = 32;
+        const rect = imageEl.getBoundingClientRect();
+        const padding = 40;
 
-      // Check if the cursor is inside the image bounds
-      if (
-        e.pageX < -padding + rect.left + window.scrollX ||
-        e.pageX > padding + rect.right + window.scrollX ||
-        e.pageY < -padding + rect.top + window.scrollY ||
-        e.pageY > padding + rect.bottom + window.scrollY
-      ) {
-        console.log("Nope");
-        return;
+        if (
+          e.pageX < -padding + rect.left + window.scrollX ||
+          e.pageX > padding + rect.right + window.scrollX ||
+          e.pageY < -padding + rect.top + window.scrollY ||
+          e.pageY > padding + rect.bottom + window.scrollY
+        ) {
+          return;
+        }
       }
 
       dragStart = performance.now();
       setIsDragging(true);
 
-      // Confine
-      const mouse = constrainMouse([e.pageX, e.pageY]);
+      // Only constrain if allowOutsideImageBox is true
+      const mouse = !allowOutsideImageBox
+        ? constrainMouse([e.pageX, e.pageY])
+        : [e.pageX, e.pageY];
 
       setStartPoint({ x: mouse[0], y: mouse[1] });
       setOverlayBox({
@@ -73,8 +77,10 @@ const Screenshot = ({
       if (!isDragging) return;
       setCurrentPoint({ x: e.pageX, y: e.pageY });
 
-      // Confine
-      const mouse = constrainMouse([e.pageX, e.pageY]);
+      // Only constrain if allowOutsideImageBox is true
+      const mouse = !allowOutsideImageBox
+        ? constrainMouse([e.pageX, e.pageY])
+        : [e.pageX, e.pageY];
 
       const x = Math.min(startPoint.x, mouse[0]);
       const y = Math.min(startPoint.y, mouse[1]);

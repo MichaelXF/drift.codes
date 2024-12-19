@@ -1,5 +1,6 @@
 export const LocalStorageKeys = {
-  DriftCodesGeminiAPIKey: "DriftCodes_GeminiAPIKey",
+  DriftCodesAPIKeys: "DriftCodes_APIKeys",
+  DriftCodesSelectedModel: "DriftCodes_SelectedModel",
 };
 
 export const DriftCodesIndexedDBPrefix = "DC_";
