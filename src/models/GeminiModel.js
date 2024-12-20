@@ -4,8 +4,10 @@ const {
   GoogleGenerativeAI,
   HarmCategory,
   HarmBlockThreshold,
-} = require("@google/generative-ai");
-const { GoogleAIFileManager } = require("@google/generative-ai/server");
+} = require("../forks/generative-ai-js/index");
+const {
+  GoogleAIFileManager,
+} = require("../forks/generative-ai-js/server/index");
 
 export default class GeminiModel extends Model {
   constructor(apiKey) {

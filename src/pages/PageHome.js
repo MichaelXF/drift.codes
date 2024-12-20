@@ -9,8 +9,6 @@ import AnthropicModel from "../models/AnthropicModel";
 import OpenAIModel from "../models/OpenAIModel";
 import { RiGithubLine } from "react-icons/ri";
 
-const { GoogleAIFileManager } = require("@google/generative-ai/server");
-
 export default function PageHome() {
   var [file, setFile] = useState();
   var [imageURL, setImageURL] = useState();
