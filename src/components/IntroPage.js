@@ -2,7 +2,7 @@ import { Box, Button, Stack, Typography } from "@mui/material";
 import { useMemo, useState } from "react";
 import { useLocalStorage } from "usehooks-ts";
 import { LocalStorageKeys } from "../constants";
-import { Api, KeyboardArrowRight } from "@mui/icons-material";
+import { Api, InfoOutlined, KeyboardArrowRight } from "@mui/icons-material";
 import { openFilePicker } from "../utils/file-utils";
 import APIKeyDialog from "./dialogs/APIKeyDialog";
 
@@ -55,7 +55,14 @@ export default function IntroPage({
         }}
       />
 
-      <Box textAlign="center" maxWidth="900px" width="100%" p={10} mx="auto">
+      <Box
+        textAlign="center"
+        maxWidth="900px"
+        width="100%"
+        p={10}
+        mx="auto"
+        mt={8}
+      >
         <Typography variant="h2" mb={4}>
           Welcome to drift.codes!
         </Typography>
@@ -144,6 +151,13 @@ export default function IntroPage({
             </Button>
           )}
         </Stack>
+
+        <Box mt={4}>
+          <Typography variant="caption" color="text.secondary_darker">
+            <InfoOutlined sx={{ mb: "-2px", mr: "4px" }} />
+            Supported models: Gemini, Claude, OpenAI, and more coming soon...
+          </Typography>
+        </Box>
       </Box>
     </Box>
   );

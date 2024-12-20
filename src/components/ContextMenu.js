@@ -1,22 +1,29 @@
 import React, { useState } from "react";
-import { Menu, MenuItem, ListItemIcon, ListItemText } from "@mui/material";
+import {
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
+  Icon,
+} from "@mui/material";
 import CodeIcon from "@mui/icons-material/Code";
 import SmartToyIcon from "@mui/icons-material/SmartToy";
 import DeleteIcon from "@mui/icons-material/Delete";
+import { RiSparklingLine } from "react-icons/ri";
 
 export default function ContextMenuExample({
   contextMenu,
   onClose,
   onViewCode,
   onDeleteNode,
+  onSelectNode,
 }) {
   const handleViewInCode = () => {
     onViewCode(contextMenu.node);
   };
 
   const handleTargetForAI = () => {
-    console.log("Target element for AI prompt clicked.");
-    onClose();
+    onSelectNode(contextMenu.node);
   };
 
   const handleDeleteNode = () => {
@@ -48,9 +55,9 @@ export default function ContextMenuExample({
 
       <MenuItem onClick={handleTargetForAI}>
         <ListItemIcon>
-          <SmartToyIcon fontSize="small" />
+          <Icon component={RiSparklingLine} fontSize="small" />
         </ListItemIcon>
-        <ListItemText>Target element for AI prompt</ListItemText>
+        <ListItemText>Retouch with AI</ListItemText>
       </MenuItem>
 
       <MenuItem onClick={handleDeleteNode}>

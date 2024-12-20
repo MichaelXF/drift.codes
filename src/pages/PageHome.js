@@ -1,4 +1,4 @@
-import { Box, CircularProgress, Fade } from "@mui/material";
+import { Box, CircularProgress, Fade, IconButton, Link } from "@mui/material";
 import { useEffect, useState } from "react";
 import { useLocalStorage } from "usehooks-ts";
 import { LocalStorageKeys } from "../constants";
@@ -7,6 +7,7 @@ import EditorPage from "../components/EditorPage";
 import GeminiModel from "../models/GeminiModel";
 import AnthropicModel from "../models/AnthropicModel";
 import OpenAIModel from "../models/OpenAIModel";
+import { RiGithubLine } from "react-icons/ri";
 
 const { GoogleAIFileManager } = require("@google/generative-ai/server");
 
@@ -68,6 +69,21 @@ export default function PageHome() {
         timeout={{ enter: 2000, exit: 500 }}
       >
         <Box>
+          <Box position="absolute" right="16px" top="16px" zIndex="10">
+            <IconButton
+              component={Link}
+              href="https://github.com/MichaelXF/drift.codes"
+              target="_blank"
+              size="small"
+              sx={{
+                color: "text.secondary",
+                cursor: "pointer",
+              }}
+            >
+              <RiGithubLine />
+            </IconButton>
+          </Box>
+
           <IntroPage
             apiKeys={apiKeys}
             selectedModel={selectedModel}

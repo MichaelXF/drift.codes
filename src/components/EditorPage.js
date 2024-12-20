@@ -12,7 +12,7 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Editor from "@monaco-editor/react";
 import { rgbToHex } from "../utils/color-utils";
 
@@ -24,7 +24,7 @@ import CompareDialog from "./dialogs/CompareDialog";
 import ContextMenuExample from "./ContextMenu";
 import { Link } from "react-router-dom";
 import BoundingBoxes from "./BoundingBoxes";
-import { AspectRatio, Close, OpenInNew } from "@mui/icons-material";
+import { AspectRatio, Close, Fullscreen } from "@mui/icons-material";
 import { debounce } from "../utils/react-utils";
 import ChatPopover from "./js-confuser-ai/components/ChatPopover";
 
@@ -553,6 +553,26 @@ Think about creating a list of components that make sense for an HTML/TailwindCS
 
   const maxViewport = fullScreenMode ? 100 : 80;
 
+  const allowScreenshot = page === "preview" && !showCompareDialog;
+
+  let sizingContainerSx = {
+    width: "100%",
+    height: "auto",
+    aspectRatio:
+      imageDimensions && followAspectRatio
+        ? `${imageDimensions.width} / ${imageDimensions.height}`
+        : "1/1",
+
+    maxWidth:
+      imageDimensions && followAspectRatio
+        ? `clamp(0px, 100%, calc(${maxViewport}vh * (${imageDimensions.width} / ${imageDimensions.height})))`
+        : "100%",
+    maxHeight:
+      imageDimensions && followAspectRatio
+        ? `clamp(0px, calc(${maxViewport}vw / (${imageDimensions.width} / ${imageDimensions.height})), 100%)`
+        : "100%",
+  };
+
   return (
     <Box
       display="flex"
@@ -565,6 +585,10 @@ Think about creating a list of components that make sense for an HTML/TailwindCS
         contextMenu={contextMenu}
         onClose={() => {
           console.log("Context menu closed.");
+          setContextMenu(null);
+        }}
+        onSelectNode={(node) => {
+          setSelectedNode(node);
           setContextMenu(null);
         }}
         onDeleteNode={(node) => {
@@ -605,7 +629,7 @@ Think about creating a list of components that make sense for an HTML/TailwindCS
           setScreenshot(image);
           setShowCompareDialog(true);
         }}
-        active={page === "preview" && !showCompareDialog}
+        active={allowScreenshot}
         originalImageRef={originalImageRef}
         iframeRef={iframeRef}
         htmlCleanupRef={htmlCleanupRef}
@@ -832,8 +856,13 @@ Think about creating a list of components that make sense for an HTML/TailwindCS
                   setFullScreenMode(!fullScreenMode);
                 }}
                 title="Full Screen"
+                sx={{
+                  width: "36px",
+                  height: "36px",
+                  fontSize: "1.25rem",
+                }}
               >
-                <OpenInNew />
+                <Fullscreen />
               </IconButton>
             </Stack>
           ) : null}
@@ -948,12 +977,8 @@ Think about creating a list of components that make sense for an HTML/TailwindCS
                 ) : null}
                 <Box
                   sx={{
-                    width: "100%",
-                    height: "auto",
-                    aspectRatio:
-                      imageDimensions && followAspectRatio
-                        ? `${imageDimensions.width} / ${imageDimensions.height}`
-                        : "1/1",
+                    cursor: allowScreenshot ? "crosshair" : "default",
+
                     bgcolor: "#fff",
                     position: "relative",
                     borderRadius:
@@ -961,14 +986,7 @@ Think about creating a list of components that make sense for an HTML/TailwindCS
                     boxShadow: "0 25px 50px -12px rgb(0 0 0 / 0.25)",
                     overflow: "hidden",
 
-                    maxWidth:
-                      imageDimensions && followAspectRatio
-                        ? `clamp(0px, 100%, calc(${maxViewport}vh * (${imageDimensions.width} / ${imageDimensions.height})))`
-                        : "100%",
-                    maxHeight:
-                      imageDimensions && followAspectRatio
-                        ? `clamp(0px, calc(${maxViewport}vw / (${imageDimensions.width} / ${imageDimensions.height})), 100%)`
-                        : "100%",
+                    ...sizingContainerSx,
                   }}
                 >
                   {showBoundingBoxes ? (
@@ -982,11 +1000,6 @@ Think about creating a list of components that make sense for an HTML/TailwindCS
                     iframeRef={iframeRef}
                     onElementChanged={(target) => {
                       setSelectedNode(target);
-                      console.log(
-                        astMappingsRef.current[
-                          target.getAttribute("data-ast-id")
-                        ].parentNode
-                      );
                     }}
                     htmlCleanupRef={htmlCleanupRef}
                     sx={{
